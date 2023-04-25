@@ -1,0 +1,12 @@
+export const DEVELOPMENT = 'development';
+export const TEST = 'test';
+export const PRODUCTION = 'production';
+export const CASCADE = 'CASCADE';
+export const LOCAL = 'local';
+export const JWT = 'jwt';
+export const SUCCESS = 'success';
+export const FAILED = 'failed';
+export const PENDING = 'pending';
+export const APPROVED = 'approved';
+export const UPLOAD_TO_S3 = 'Upload to S3';
+export const PAYSTACK_WEBHOOK_RECEIVED = 'Paystack webhook received';
