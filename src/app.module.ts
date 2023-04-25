@@ -10,6 +10,7 @@ import { MongooseModule } from "@nestjs/mongoose";
 import { SpecialistsModule } from './modules/specialists/specialists.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
 
 dotenv.config();
 @Module({
@@ -22,6 +23,7 @@ dotenv.config();
     SpecialistsModule,
     AppointmentsModule,
     DashboardModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
