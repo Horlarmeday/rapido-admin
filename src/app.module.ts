@@ -6,11 +6,12 @@ import { UsersModule } from './modules/users/users.module';
 import { PatientsModule } from './modules/patients/patients.module';
 import * as dotenv from 'dotenv';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule } from "@nestjs/mongoose";
+import { MongooseModule } from '@nestjs/mongoose';
 import { SpecialistsModule } from './modules/specialists/specialists.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 dotenv.config();
 @Module({
@@ -24,6 +25,7 @@ dotenv.config();
     AppointmentsModule,
     DashboardModule,
     AnalyticsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
