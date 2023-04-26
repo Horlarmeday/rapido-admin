@@ -147,7 +147,7 @@ export class PatientsService {
       this.getUserSubscriptions(userId),
       this.appointmentService.getPatientAppointments(userId, {}),
     ]);
-    return { ...user, subscriptions, appointments };
+    return { user, subscriptions, appointments };
   }
 
   async getUserSubscriptions(userId: Types.ObjectId) {

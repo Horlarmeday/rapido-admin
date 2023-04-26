@@ -117,7 +117,7 @@ export class SpecialistsService {
       this.getWalletTransactions(userId),
       this.appointmentService.getSpecialistAppointments(userId, {}),
     ]);
-    return { ...user, transactions, appointments };
+    return { user, transactions, appointments };
   }
 
   async getWalletTransactions(userId: Types.ObjectId) {

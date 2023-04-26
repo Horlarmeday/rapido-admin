@@ -12,6 +12,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { PlansModule } from "./modules/plans/plans.module";
 
 dotenv.config();
 @Module({
@@ -26,6 +27,7 @@ dotenv.config();
     DashboardModule,
     AnalyticsModule,
     SettingsModule,
+    PlansModule,
   ],
   controllers: [AppController],
   providers: [AppService],
