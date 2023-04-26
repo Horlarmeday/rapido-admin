@@ -5,6 +5,7 @@ import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { GeneralHelpers } from '../../common/helpers/general.helpers';
 import { CreateUserDto } from './dto/create-user.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -14,13 +15,15 @@ export class UsersService {
   ) {}
 
   async createAdminAccount(createUserDto: CreateUserDto) {
-    return await create(this.adminModel, {
+    const admin = await create(this.adminModel, {
       ...createUserDto,
+      password: await this.hashPassword(createUserDto.password),
       phone: {
         country_code: createUserDto.country_code,
         number: createUserDto.phone,
       },
     });
+    return UsersService.excludeFields(admin);
   }
 
   async findById(id: Types.ObjectId): Promise<AdminDocument> {
@@ -41,5 +44,16 @@ export class UsersService {
         },
       ],
     });
+  }
+
+  async hashPassword(password: string) {
+    const salt = await bcrypt.genSalt(10);
+    return await bcrypt.hash(password, salt);
+  }
+
+  private static excludeFields(admin: AdminDocument) {
+    const serializedUser = admin.toJSON() as Partial<Admin>;
+    delete serializedUser?.password;
+    return serializedUser;
   }
 }

@@ -40,7 +40,9 @@ export class AuthService {
   private async generateToken(
     payload: IJwtPayload | { sub: string; email: string },
   ) {
-    return await this.jwtService.signAsync(payload);
+    return await this.jwtService.signAsync(payload, {
+      secret: process.env.JWTKEY,
+    });
   }
 
   private static formatJwtPayload(user: AdminDocument): IJwtPayload {

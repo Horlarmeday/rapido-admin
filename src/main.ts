@@ -15,7 +15,7 @@ async function bootstrap() {
   const logger: LoggerService = new Logger();
 
   app.use(helmet());
-  app.use(cors({ exposedHeaders: 'X-Paystack-Key' }));
+  app.use(cors());
   app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(morgan('dev'));
