@@ -15,7 +15,6 @@ import { Messages } from '../../core/messages/messages';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Types } from "mongoose";
 
-@UseGuards(JwtAuthGuard)
 @Controller('plans')
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
