@@ -15,6 +15,11 @@ import {
 import { AppointmentsService } from '../appointments/appointments.service';
 import { Interval, QueryIntervalDto } from './dto/query-interval.dto';
 import * as moment from 'moment';
+import {
+  PatientsAnalyticsFilter,
+  PatientAnalyticsDto,
+} from './dto/patient-analytics.dto';
+import { isArray } from 'class-validator';
 
 @Injectable()
 export class PatientsService {
@@ -281,5 +286,350 @@ export class PatientsService {
           graphData: defaultData,
         };
     }
+  }
+
+  filterQuery(filter: PatientsAnalyticsFilter | PatientsAnalyticsFilter[]) {
+    switch (filter) {
+      case PatientsAnalyticsFilter.ALL:
+        return {};
+      case PatientsAnalyticsFilter.WITH_SUBSCRIPTION:
+        return { 'plan.plan_name': { $exists: true } };
+      case PatientsAnalyticsFilter.WITHOUT_SUBSCRIPTION:
+        return { $or: [{ plan: { $eq: null } }, { plan: { $exists: false } }] };
+      default:
+        return {};
+    }
+  }
+
+  async analyticsDataPerDay(startDate, endDate, filter) {
+    return this.userModel.aggregate([
+      {
+        $match: {
+          created_at: {
+            $gte: moment(startDate).toDate(),
+            $lt: moment(endDate).toDate(),
+          },
+          ...this.filterQuery(filter),
+          user_type: UserType.PATIENT,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$created_at',
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+  }
+
+  async analyticsDataPerWeek(startDate, endDate, filter) {
+    return this.userModel.aggregate([
+      // Filter documents from the last 3 months
+      {
+        $match: {
+          created_at: {
+            $gte: moment(startDate).toDate(),
+            $lt: moment(endDate).toDate(),
+          },
+          ...this.filterQuery(filter),
+          user_type: UserType.PATIENT,
+        },
+      },
+      // Group documents by week and calculate the count
+      {
+        $group: {
+          _id: {
+            year: { $year: '$created_at' },
+            week: { $week: '$created_at' },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      // Project the results to the desired format
+      {
+        $project: {
+          _id: 0,
+          week: { $concat: ['Week ', { $toString: '$_id.week' }] },
+          year: '$_id.year',
+          count: 1,
+        },
+      },
+      // Sort documents by year and week in ascending order
+      {
+        $sort: { year: 1, week: 1 },
+      },
+    ]);
+  }
+
+  async analyticsDataPerMonth(startDate, endDate, filter) {
+    return this.userModel.aggregate([
+      // Filter documents from the last 6 months
+      {
+        $match: {
+          $match: {
+            created_at: {
+              $gte: moment(startDate).toDate(),
+              $lt: moment(endDate).toDate(),
+            },
+            ...this.filterQuery(filter),
+            user_type: UserType.PATIENT,
+          },
+        },
+      },
+      // Group documents by month and calculate the count
+      {
+        $group: {
+          _id: {
+            year: { $year: '$created_at' },
+            month: { $month: '$created_at' },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      // Project the results to the desired format
+      {
+        $project: {
+          _id: 0,
+          month: {
+            $dateToString: {
+              format: '%Y-%m',
+              date: new Date(Number('$_id.year'), Number('$_id.month'), 1),
+            },
+          },
+          count: 1,
+        },
+      },
+      // Sort documents by month in ascending order
+      {
+        $sort: { month: 1 },
+      },
+    ]);
+  }
+
+  async analyticsDataPerYear(filter) {
+    return this.userModel.aggregate([
+      // Filter documents
+      {
+        $match: {
+          $match: {
+            ...this.filterQuery(filter),
+            user_type: UserType.PATIENT,
+          },
+        },
+      },
+      // Group documents by year and calculate the count
+      {
+        $group: {
+          _id: { $year: '$created_at' },
+          count: { $sum: 1 },
+        },
+      },
+      // Project the results to the desired format
+      {
+        $project: {
+          _id: 0,
+          year: '$_id',
+          count: 1,
+        },
+      },
+      // Sort documents by year in ascending order
+      {
+        $sort: { year: 1 },
+      },
+    ]);
+  }
+
+  async analyticsGraphData(patientAnalyticsDto: PatientAnalyticsDto) {
+    let { start_date, end_date } = patientAnalyticsDto;
+    const { interval, filter } = patientAnalyticsDto;
+
+    switch (interval) {
+      case Interval.DAY: {
+        if (!start_date)
+          start_date = moment().subtract(2, 'month').startOf('month').toDate();
+        if (!end_date) end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) =>
+              this.analyticsDataPerDay(start_date, end_date, fil),
+            ),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await this.analyticsDataPerDay(start_date, end_date, filter),
+          },
+        };
+      }
+      case Interval.WEEK: {
+        if (!start_date)
+          start_date = moment().subtract(3, 'month').startOf('month').toDate();
+        if (!end_date) end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) =>
+              this.analyticsDataPerWeek(start_date, end_date, fil),
+            ),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await this.analyticsDataPerWeek(start_date, end_date, filter),
+          },
+        };
+      }
+      case Interval.MONTH: {
+        if (!start_date) start_date = moment().subtract(8, 'month').toDate();
+        if (!end_date) end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) =>
+              this.analyticsDataPerMonth(start_date, end_date, fil),
+            ),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await this.analyticsDataPerMonth(
+              start_date,
+              end_date,
+              filter,
+            ),
+          },
+        };
+      }
+      case Interval.YEAR: {
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) => this.analyticsDataPerYear(fil)),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: { filter, data: await this.analyticsDataPerYear(filter) },
+        };
+      }
+      default: {
+        start_date = moment().subtract(2, 'month').startOf('month').toDate();
+        end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) =>
+              this.analyticsDataPerDay(start_date, end_date, fil),
+            ),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await this.analyticsDataPerDay(start_date, end_date, filter),
+          },
+        };
+      }
+    }
+  }
+
+  async analyticsData() {
+    const [
+      totalPatients,
+      patientsWithSubscriptions,
+      patientsWithoutSubscriptions,
+      totalPatientsYesterday,
+      totalPatientsWithSubscriptionYesterday,
+      totalPatientsWithoutSubscriptionYesterday,
+    ] = await Promise.all([
+      countDocuments(this.userModel, {
+        user_type: UserType.PATIENT,
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.PATIENT,
+        'plan.plan_name': { $exists: true },
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.PATIENT,
+        $or: [{ plan: { $eq: null } }, { plan: { $exists: false } }],
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.PATIENT,
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.PATIENT,
+        'plan.plan_name': { $exists: true },
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.PATIENT,
+        $or: [{ plan: { $eq: null } }, { plan: { $exists: false } }],
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+    ]);
+    return {
+      totalPatients,
+      patientsWithSubscriptions,
+      patientsWithoutSubscriptions,
+      totalPatientsYesterday,
+      totalPatientsWithSubscriptionYesterday,
+      totalPatientsWithoutSubscriptionYesterday,
+    };
   }
 }
