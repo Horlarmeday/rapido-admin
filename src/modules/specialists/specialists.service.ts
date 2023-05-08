@@ -6,13 +6,29 @@ import { SpecialistAdvancedFilterDto } from './dto/specialist-advanced-filter.dt
 import { PatientsService } from '../patients/patients.service';
 import { GeneralHelpers } from '../../common/helpers/general.helpers';
 import { UserType } from '../users/types/profile.types';
-import { countDocuments, find, findAndCountAll } from '../../common/crud/crud';
+import {
+  aggregateDataPerDay,
+  aggregateDataPerMonth,
+  aggregateDataPerWeek,
+  aggregateDataPerYear,
+  countDocuments,
+  find,
+  findAndCountAll,
+} from '../../common/crud/crud';
 import { WalletDocument } from './entities/wallet.entity';
 import { AppointmentsService } from '../appointments/appointments.service';
 import {
   WalletTransaction,
   WalletTransactionDocument,
 } from './entities/wallet-transactions.entity';
+import * as moment from 'moment/moment';
+import { SpecialistCategories } from './types/specialists.types';
+import { Interval } from '../patients/dto/query-interval.dto';
+import { isArray } from 'class-validator';
+import {
+  SpecialistAnalyticsFilter,
+  SpecialistsAnalyticsDto,
+} from './dto/specialists-analytics.dto';
 
 @Injectable()
 export class SpecialistsService {
@@ -84,7 +100,7 @@ export class SpecialistsService {
       query,
       limit,
       offset,
-      options: { selectFields: this.getSelectedFields(query.user_type) },
+      options: { selectFields: this.getSelectedFields() },
       displayScore: true,
     })) as UserDocument[];
     return {
@@ -103,7 +119,7 @@ export class SpecialistsService {
       query,
       limit,
       offset,
-      options: { selectFields: this.getSelectedFields(query.user_type) },
+      options: { selectFields: this.getSelectedFields() },
     })) as UserDocument[];
     return {
       specialists,
@@ -126,25 +142,299 @@ export class SpecialistsService {
     })) as WalletDocument[];
   }
 
-  getSelectedFields(user_type: UserType) {
-    if (user_type === UserType.SPECIALIST) {
-      return [
-        '-profile.password',
-        '-profile.twoFA_secret',
-        '-emergency_contacts',
-        '-pre_existing_conditions',
-        '-dependants',
-      ];
-    }
+  getSelectedFields() {
     return [
       '-profile.password',
       '-profile.twoFA_secret',
-      '-documents',
-      '-professional_practice',
-      '-earnings',
-      '-average_rating',
-      '-verification_status',
-      '-awards',
+      '-emergency_contacts',
+      '-pre_existing_conditions',
+      '-dependants',
     ];
+  }
+
+  async analyticsData() {
+    const [
+      totalSpecialists,
+      totalDoctors,
+      totalTherapists,
+      totalPharmacists,
+      totalSpecialistsYesterday,
+      totalDoctorsYesterday,
+      totalTherapistsYesterday,
+      totalPharmacistsYesterday,
+    ] = await Promise.all([
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        'professional_practice.category': SpecialistCategories.MEDICAL_DOCTOR,
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        'professional_practice.category': SpecialistCategories.THERAPIST,
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        'professional_practice.category': SpecialistCategories.PHARMACIST,
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        'professional_practice.category': SpecialistCategories.MEDICAL_DOCTOR,
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        'professional_practice.category': SpecialistCategories.THERAPIST,
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+      countDocuments(this.userModel, {
+        user_type: UserType.SPECIALIST,
+        'professional_practice.category': SpecialistCategories.PHARMACIST,
+        created_at: {
+          $gte: moment().subtract(1, 'day').startOf('day').toDate(),
+          $lte: moment().subtract(1, 'day').endOf('day').toDate(),
+        },
+      }),
+    ]);
+    return {
+      totalSpecialists,
+      totalDoctors,
+      totalTherapists,
+      totalPharmacists,
+      totalSpecialistsYesterday,
+      totalDoctorsYesterday,
+      totalTherapistsYesterday,
+      totalPharmacistsYesterday,
+    };
+  }
+
+  async analyticsGraphData(specialistsAnalyticsDto: SpecialistsAnalyticsDto) {
+    let { start_date, end_date } = specialistsAnalyticsDto;
+    const { interval, filter } = specialistsAnalyticsDto;
+
+    switch (interval) {
+      case Interval.DAY: {
+        if (!start_date)
+          start_date = moment().subtract(2, 'month').startOf('month').toDate();
+        if (!end_date) end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) => {
+              return aggregateDataPerDay(this.userModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+                user_type: UserType.SPECIALIST,
+              });
+            }),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await aggregateDataPerDay(this.userModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+              user_type: UserType.SPECIALIST,
+            }),
+          },
+        };
+      }
+      case Interval.WEEK: {
+        if (!start_date)
+          start_date = moment().subtract(3, 'month').startOf('month').toDate();
+        if (!end_date) end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) => {
+              return aggregateDataPerWeek(this.userModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+                user_type: UserType.SPECIALIST,
+              });
+            }),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await aggregateDataPerWeek(this.userModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+              user_type: UserType.SPECIALIST,
+            }),
+          },
+        };
+      }
+      case Interval.MONTH: {
+        if (!start_date) start_date = moment().subtract(8, 'month').toDate();
+        if (!end_date) end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) => {
+              return aggregateDataPerMonth(this.userModel, {
+                ...this.filterQuery(fil),
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                user_type: UserType.SPECIALIST,
+              });
+            }),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await aggregateDataPerMonth(this.userModel, {
+              ...this.filterQuery(filter),
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              user_type: UserType.SPECIALIST,
+            }),
+          },
+        };
+      }
+      case Interval.YEAR: {
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) => {
+              return aggregateDataPerYear(this.userModel, {
+                user_type: UserType.SPECIALIST,
+                ...this.filterQuery(fil),
+              });
+            }),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await aggregateDataPerYear(this.userModel, {
+              user_type: UserType.SPECIALIST,
+              ...this.filterQuery(filter),
+            }),
+          },
+        };
+      }
+      default: {
+        start_date = moment().subtract(2, 'month').startOf('month').toDate();
+        end_date = moment().toDate();
+        if (isArray(filter)) {
+          const data = await Promise.all(
+            filter.map((fil) => {
+              return aggregateDataPerDay(this.userModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+                user_type: UserType.SPECIALIST,
+              });
+            }),
+          );
+          return {
+            interval,
+            data: filter.map((fil, index) => ({
+              filter: fil,
+              data: data[index],
+            })),
+          };
+        }
+        return {
+          interval,
+          data: {
+            filter,
+            data: await aggregateDataPerDay(this.userModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+              user_type: UserType.SPECIALIST,
+            }),
+          },
+        };
+      }
+    }
+  }
+
+  private filterQuery(filter: SpecialistAnalyticsFilter) {
+    switch (filter) {
+      case SpecialistAnalyticsFilter.ALL:
+        return {};
+      case SpecialistAnalyticsFilter.MEDICAL_DOCTOR:
+        return {
+          'professional_practice.category': SpecialistCategories.MEDICAL_DOCTOR,
+        };
+      case SpecialistAnalyticsFilter.PHARMACIST:
+        return {
+          'professional_practice.category': SpecialistCategories.PHARMACIST,
+        };
+      case SpecialistAnalyticsFilter.THERAPIST:
+        return {
+          'professional_practice.category': SpecialistCategories.THERAPIST,
+        };
+      default:
+        return {};
+    }
   }
 }

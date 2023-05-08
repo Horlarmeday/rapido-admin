@@ -15,6 +15,7 @@ import { sendSuccessResponse } from '../../core/responses/success.responses';
 import { Messages } from '../../core/messages/messages';
 import { PatientAnalyticsDto } from '../patients/dto/patient-analytics.dto';
 import { AppointmentsAnalyticsDto } from '../appointments/dto/appointments-analytics.dto';
+import { SpecialistsAnalyticsDto } from '../specialists/dto/specialists-analytics.dto';
 
 @Controller('analytics')
 export class AnalyticsController {
@@ -50,6 +51,22 @@ export class AnalyticsController {
       await this.analyticsService.getAppointmentsAnalyticsGraphData(
         appointmentsAnalyticsDto,
       );
+    return sendSuccessResponse(Messages.RETRIEVED, result);
+  }
+
+  @Get('specialists')
+  async getSpecialistsAnalyticsData() {
+    const result = await this.analyticsService.getSpecialistsAnalyticsData();
+    return sendSuccessResponse(Messages.RETRIEVED, result);
+  }
+
+  @Get('specialists-graph')
+  async getSpecialistsAnalyticsGraphData(
+    @Query() specialistsAnalyticsDto: SpecialistsAnalyticsDto,
+  ) {
+    const result = await this.analyticsService.getSpecialistsAnalyticsGraphData(
+      specialistsAnalyticsDto,
+    );
     return sendSuccessResponse(Messages.RETRIEVED, result);
   }
 }
