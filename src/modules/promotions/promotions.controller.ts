@@ -21,7 +21,6 @@ import { Messages } from '../../core/messages/messages';
 import { sendSuccessResponse } from '../../core/responses/success.responses';
 import { QueryDto } from '../../common/helpers/url-query.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('promotions')
 export class PromotionsController {
   constructor(private readonly promotionsService: PromotionsService) {}

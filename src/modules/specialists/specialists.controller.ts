@@ -6,7 +6,6 @@ import { SpecialistAdvancedFilterDto } from './dto/specialist-advanced-filter.dt
 import { Types } from 'mongoose';
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 
-@UseGuards(JwtAuthGuard)
 @Controller('specialists')
 export class SpecialistsController {
   constructor(private readonly specialistsService: SpecialistsService) {}

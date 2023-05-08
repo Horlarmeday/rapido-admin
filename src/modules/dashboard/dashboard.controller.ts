@@ -9,7 +9,6 @@ import { Messages } from '../../core/messages/messages';
 import { QueryIntervalDto } from '../patients/dto/query-interval.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@UseGuards(JwtAuthGuard)
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
