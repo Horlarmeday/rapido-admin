@@ -1,7 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PatientAdvancedFilterDto } from './dto/patient-advanced-filter.dto';
 import { UserType, VerificationStatus } from '../users/types/profile.types';
-import { countDocuments, find, findAndCountAll } from '../../common/crud/crud';
+import {
+  aggregateDataPerDay,
+  aggregateDataPerMonth,
+  aggregateDataPerWeek,
+  countDocuments,
+  find,
+  findAndCountAll,
+} from '../../common/crud/crud';
 import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { User, UserDocument } from './entities/patient.entity';
@@ -20,6 +27,7 @@ import {
   PatientAnalyticsDto,
 } from './dto/patient-analytics.dto';
 import { isArray } from 'class-validator';
+import { aggregateDataPerYear } from '../../common/crud/crud';
 
 @Injectable()
 export class PatientsService {
@@ -38,16 +46,7 @@ export class PatientsService {
     if (!user) throw new NotFoundException(Messages.NO_USER_FOUND);
     return user;
   }
-  getSelectedFields(user_type: UserType) {
-    if (user_type === UserType.SPECIALIST) {
-      return [
-        '-profile.password',
-        '-profile.twoFA_secret',
-        '-emergency_contacts',
-        '-pre_existing_conditions',
-        '-dependants',
-      ];
-    }
+  getSelectedFields() {
     return [
       '-profile.password',
       '-profile.twoFA_secret',
@@ -57,6 +56,7 @@ export class PatientsService {
       '-average_rating',
       '-verification_status',
       '-awards',
+      '-payment_structure',
     ];
   }
 
@@ -119,7 +119,7 @@ export class PatientsService {
       query,
       limit,
       offset,
-      options: { selectFields: this.getSelectedFields(query.user_type) },
+      options: { selectFields: this.getSelectedFields() },
       displayScore: true,
     })) as UserDocument[];
     return {
@@ -138,7 +138,7 @@ export class PatientsService {
       query,
       limit,
       offset,
-      options: { selectFields: this.getSelectedFields(query.user_type) },
+      options: { selectFields: this.getSelectedFields() },
     })) as UserDocument[];
     return {
       patients,
@@ -301,152 +301,6 @@ export class PatientsService {
     }
   }
 
-  async analyticsDataPerDay(startDate, endDate, filter) {
-    return this.userModel.aggregate([
-      {
-        $match: {
-          created_at: {
-            $gte: moment(startDate).toDate(),
-            $lt: moment(endDate).toDate(),
-          },
-          ...this.filterQuery(filter),
-          user_type: UserType.PATIENT,
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: '%Y-%m-%d',
-              date: '$created_at',
-            },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-    ]);
-  }
-
-  async analyticsDataPerWeek(startDate, endDate, filter) {
-    return this.userModel.aggregate([
-      // Filter documents from the last 3 months
-      {
-        $match: {
-          created_at: {
-            $gte: moment(startDate).toDate(),
-            $lt: moment(endDate).toDate(),
-          },
-          ...this.filterQuery(filter),
-          user_type: UserType.PATIENT,
-        },
-      },
-      // Group documents by week and calculate the count
-      {
-        $group: {
-          _id: {
-            year: { $year: '$created_at' },
-            week: { $week: '$created_at' },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      // Project the results to the desired format
-      {
-        $project: {
-          _id: 0,
-          week: { $concat: ['Week ', { $toString: '$_id.week' }] },
-          year: '$_id.year',
-          count: 1,
-        },
-      },
-      // Sort documents by year and week in ascending order
-      {
-        $sort: { year: 1, week: 1 },
-      },
-    ]);
-  }
-
-  async analyticsDataPerMonth(startDate, endDate, filter) {
-    return this.userModel.aggregate([
-      // Filter documents from the last 6 months
-      {
-        $match: {
-          $match: {
-            created_at: {
-              $gte: moment(startDate).toDate(),
-              $lt: moment(endDate).toDate(),
-            },
-            ...this.filterQuery(filter),
-            user_type: UserType.PATIENT,
-          },
-        },
-      },
-      // Group documents by month and calculate the count
-      {
-        $group: {
-          _id: {
-            year: { $year: '$created_at' },
-            month: { $month: '$created_at' },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      // Project the results to the desired format
-      {
-        $project: {
-          _id: 0,
-          month: {
-            $dateToString: {
-              format: '%Y-%m',
-              date: new Date(Number('$_id.year'), Number('$_id.month'), 1),
-            },
-          },
-          count: 1,
-        },
-      },
-      // Sort documents by month in ascending order
-      {
-        $sort: { month: 1 },
-      },
-    ]);
-  }
-
-  async analyticsDataPerYear(filter) {
-    return this.userModel.aggregate([
-      // Filter documents
-      {
-        $match: {
-          $match: {
-            ...this.filterQuery(filter),
-            user_type: UserType.PATIENT,
-          },
-        },
-      },
-      // Group documents by year and calculate the count
-      {
-        $group: {
-          _id: { $year: '$created_at' },
-          count: { $sum: 1 },
-        },
-      },
-      // Project the results to the desired format
-      {
-        $project: {
-          _id: 0,
-          year: '$_id',
-          count: 1,
-        },
-      },
-      // Sort documents by year in ascending order
-      {
-        $sort: { year: 1 },
-      },
-    ]);
-  }
-
   async analyticsGraphData(patientAnalyticsDto: PatientAnalyticsDto) {
     let { start_date, end_date } = patientAnalyticsDto;
     const { interval, filter } = patientAnalyticsDto;
@@ -458,9 +312,16 @@ export class PatientsService {
         if (!end_date) end_date = moment().toDate();
         if (isArray(filter)) {
           const data = await Promise.all(
-            filter.map((fil) =>
-              this.analyticsDataPerDay(start_date, end_date, fil),
-            ),
+            filter.map((fil) => {
+              return aggregateDataPerDay(this.userModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+                user_type: UserType.PATIENT,
+              });
+            }),
           );
           return {
             interval,
@@ -474,7 +335,14 @@ export class PatientsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerDay(start_date, end_date, filter),
+            data: await aggregateDataPerDay(this.userModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+              user_type: UserType.PATIENT,
+            }),
           },
         };
       }
@@ -484,9 +352,16 @@ export class PatientsService {
         if (!end_date) end_date = moment().toDate();
         if (isArray(filter)) {
           const data = await Promise.all(
-            filter.map((fil) =>
-              this.analyticsDataPerWeek(start_date, end_date, fil),
-            ),
+            filter.map((fil) => {
+              return aggregateDataPerWeek(this.userModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+                user_type: UserType.PATIENT,
+              });
+            }),
           );
           return {
             interval,
@@ -500,7 +375,14 @@ export class PatientsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerWeek(start_date, end_date, filter),
+            data: await aggregateDataPerWeek(this.userModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+              user_type: UserType.PATIENT,
+            }),
           },
         };
       }
@@ -509,9 +391,16 @@ export class PatientsService {
         if (!end_date) end_date = moment().toDate();
         if (isArray(filter)) {
           const data = await Promise.all(
-            filter.map((fil) =>
-              this.analyticsDataPerMonth(start_date, end_date, fil),
-            ),
+            filter.map((fil) => {
+              return aggregateDataPerMonth(this.userModel, {
+                ...this.filterQuery(fil),
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                user_type: UserType.PATIENT,
+              });
+            }),
           );
           return {
             interval,
@@ -525,18 +414,26 @@ export class PatientsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerMonth(
-              start_date,
-              end_date,
-              filter,
-            ),
+            data: await aggregateDataPerMonth(this.userModel, {
+              ...this.filterQuery(filter),
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              user_type: UserType.PATIENT,
+            }),
           },
         };
       }
       case Interval.YEAR: {
         if (isArray(filter)) {
           const data = await Promise.all(
-            filter.map((fil) => this.analyticsDataPerYear(fil)),
+            filter.map((fil) => {
+              return aggregateDataPerYear(this.userModel, {
+                user_type: UserType.PATIENT,
+                ...this.filterQuery(fil),
+              });
+            }),
           );
           return {
             interval,
@@ -548,7 +445,13 @@ export class PatientsService {
         }
         return {
           interval,
-          data: { filter, data: await this.analyticsDataPerYear(filter) },
+          data: {
+            filter,
+            data: await aggregateDataPerYear(this.userModel, {
+              user_type: UserType.PATIENT,
+              ...this.filterQuery(filter),
+            }),
+          },
         };
       }
       default: {
@@ -556,9 +459,16 @@ export class PatientsService {
         end_date = moment().toDate();
         if (isArray(filter)) {
           const data = await Promise.all(
-            filter.map((fil) =>
-              this.analyticsDataPerDay(start_date, end_date, fil),
-            ),
+            filter.map((fil) => {
+              return aggregateDataPerDay(this.userModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+                user_type: UserType.PATIENT,
+              });
+            }),
           );
           return {
             interval,
@@ -572,7 +482,14 @@ export class PatientsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerDay(start_date, end_date, filter),
+            data: await aggregateDataPerDay(this.userModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+              user_type: UserType.PATIENT,
+            }),
           },
         };
       }

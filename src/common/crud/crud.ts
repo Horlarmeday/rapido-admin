@@ -168,3 +168,146 @@ export const updateOneAndReturn = async (
     { $set: { ...fields } },
     { returnDocument: 'after' },
   );
+
+export const aggregateDataPerYear = async (
+  model: Model<HydratedDocument<any>>,
+  query: object,
+) =>
+  model.aggregate([
+    // Filter documents
+    {
+      $match: {
+        ...query,
+      },
+    },
+    // Group documents by year and calculate the count
+    {
+      $group: {
+        _id: { $year: '$created_at' },
+        count: { $sum: 1 },
+      },
+    },
+    // Project the results to the desired format
+    {
+      $project: {
+        _id: 0,
+        year: '$_id',
+        count: 1,
+      },
+    },
+    // Sort documents by year in ascending order
+    {
+      $sort: { year: 1 },
+    },
+  ]);
+
+export const aggregateDataPerMonth = async (
+  model: Model<HydratedDocument<any>>,
+  query: object,
+) =>
+  model.aggregate([
+    // Filter documents from the last 6 months
+    {
+      $match: {
+        ...query,
+      },
+    },
+    // Group documents by month and calculate the count
+    {
+      $group: {
+        _id: {
+          year: { $year: '$created_at' },
+          month: { $month: '$created_at' },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    // Project the results to the desired format
+    {
+      $project: {
+        _id: 0,
+        month: {
+          $dateToString: {
+            format: '%Y-%m',
+            date: {
+              $dateFromString: {
+                dateString: {
+                  $concat: [
+                    { $toString: '$_id.year' },
+                    '-',
+                    { $toString: '$_id.month' },
+                    '-01',
+                  ],
+                },
+                format: '%Y-%m-%d',
+              },
+            },
+          },
+        },
+        count: 1,
+      },
+    },
+    // Sort documents by month in ascending order
+    {
+      $sort: { month: 1 },
+    },
+  ]);
+
+export const aggregateDataPerWeek = (
+  model: Model<HydratedDocument<any>>,
+  query: object,
+) =>
+  model.aggregate([
+    // Filter documents from the last 3 months
+    {
+      $match: {
+        ...query,
+      },
+    },
+    // Group documents by week and calculate the count
+    {
+      $group: {
+        _id: {
+          year: { $year: '$created_at' },
+          week: { $week: '$created_at' },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    // Project the results to the desired format
+    {
+      $project: {
+        _id: 0,
+        week: { $concat: ['Week ', { $toString: '$_id.week' }] },
+        year: '$_id.year',
+        count: 1,
+      },
+    },
+    // Sort documents by year and week in ascending order
+    {
+      $sort: { year: 1, week: 1 },
+    },
+  ]);
+
+export const aggregateDataPerDay = (model, query) =>
+  model.aggregate([
+    {
+      $match: {
+        ...query,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: {
+            format: '%Y-%m-%d',
+            date: '$created_at',
+          },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    {
+      $sort: { _id: 1 },
+    },
+  ]);

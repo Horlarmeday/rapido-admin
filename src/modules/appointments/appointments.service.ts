@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Model, Types } from 'mongoose';
 import { QueryStatus } from '../patients/types/appointment-query.types';
-import { countDocuments, find, findAndCountAll } from '../../common/crud/crud';
+import {
+  aggregateDataPerDay,
+  aggregateDataPerMonth,
+  aggregateDataPerWeek,
+  aggregateDataPerYear,
+  countDocuments,
+  find,
+  findAndCountAll,
+} from '../../common/crud/crud';
 import { InjectModel } from '@nestjs/mongoose';
 import {
   Appointment,
@@ -140,7 +148,13 @@ export class AppointmentsService {
         if (isArray(filter)) {
           const data = await Promise.all(
             filter.map((fil) =>
-              this.analyticsDataPerDay(start_date, end_date, fil),
+              aggregateDataPerDay(this.appointmentModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+              }),
             ),
           );
           return {
@@ -155,7 +169,13 @@ export class AppointmentsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerDay(start_date, end_date, filter),
+            data: await aggregateDataPerDay(this.appointmentModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+            }),
           },
         };
       }
@@ -165,7 +185,13 @@ export class AppointmentsService {
         if (isArray(filter)) {
           const data = await Promise.all(
             filter.map((fil) =>
-              this.analyticsDataPerWeek(start_date, end_date, fil),
+              aggregateDataPerWeek(this.appointmentModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+              }),
             ),
           );
           return {
@@ -180,7 +206,13 @@ export class AppointmentsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerWeek(start_date, end_date, filter),
+            data: await aggregateDataPerWeek(this.appointmentModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+            }),
           },
         };
       }
@@ -190,7 +222,13 @@ export class AppointmentsService {
         if (isArray(filter)) {
           const data = await Promise.all(
             filter.map((fil) =>
-              this.analyticsDataPerMonth(start_date, end_date, fil),
+              aggregateDataPerMonth(this.appointmentModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+              }),
             ),
           );
           return {
@@ -205,18 +243,24 @@ export class AppointmentsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerMonth(
-              start_date,
-              end_date,
-              filter,
-            ),
+            data: await aggregateDataPerMonth(this.appointmentModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+            }),
           },
         };
       }
       case Interval.YEAR: {
         if (isArray(filter)) {
           const data = await Promise.all(
-            filter.map((fil) => this.analyticsDataPerYear(fil)),
+            filter.map((fil) =>
+              aggregateDataPerYear(this.appointmentModel, {
+                ...this.filterQuery(fil),
+              }),
+            ),
           );
           return {
             interval,
@@ -228,7 +272,12 @@ export class AppointmentsService {
         }
         return {
           interval,
-          data: { filter, data: await this.analyticsDataPerYear(filter) },
+          data: {
+            filter,
+            data: await aggregateDataPerYear(this.appointmentModel, {
+              ...this.filterQuery(filter),
+            }),
+          },
         };
       }
       default: {
@@ -237,7 +286,13 @@ export class AppointmentsService {
         if (isArray(filter)) {
           const data = await Promise.all(
             filter.map((fil) =>
-              this.analyticsDataPerDay(start_date, end_date, fil),
+              aggregateDataPerDay(this.appointmentModel, {
+                created_at: {
+                  $gte: moment(start_date).toDate(),
+                  $lt: moment(end_date).toDate(),
+                },
+                ...this.filterQuery(fil),
+              }),
             ),
           );
           return {
@@ -252,165 +307,17 @@ export class AppointmentsService {
           interval,
           data: {
             filter,
-            data: await this.analyticsDataPerDay(start_date, end_date, filter),
+            data: await aggregateDataPerDay(this.appointmentModel, {
+              created_at: {
+                $gte: moment(start_date).toDate(),
+                $lt: moment(end_date).toDate(),
+              },
+              ...this.filterQuery(filter),
+            }),
           },
         };
       }
     }
-  }
-
-  private async analyticsDataPerDay(
-    startDate: Date,
-    endDate: Date,
-    filter: AppointmentAnalyticsFilter,
-  ) {
-    return this.appointmentModel.aggregate([
-      {
-        $match: {
-          created_at: {
-            $gte: moment(startDate).toDate(),
-            $lt: moment(endDate).toDate(),
-          },
-          ...this.filterQuery(filter),
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: '%Y-%m-%d',
-              date: '$created_at',
-            },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-    ]);
-  }
-
-  private async analyticsDataPerYear(filter: AppointmentAnalyticsFilter) {
-    return this.appointmentModel.aggregate([
-      // Filter documents
-      {
-        $match: {
-          $match: {
-            ...this.filterQuery(filter),
-          },
-        },
-      },
-      // Group documents by year and calculate the count
-      {
-        $group: {
-          _id: { $year: '$created_at' },
-          count: { $sum: 1 },
-        },
-      },
-      // Project the results to the desired format
-      {
-        $project: {
-          _id: 0,
-          year: '$_id',
-          count: 1,
-        },
-      },
-      // Sort documents by year in ascending order
-      {
-        $sort: { year: 1 },
-      },
-    ]);
-  }
-
-  private async analyticsDataPerMonth(
-    startDate: Date,
-    endDate: Date,
-    filter: AppointmentAnalyticsFilter,
-  ) {
-    return this.appointmentModel.aggregate([
-      // Filter documents from the last 6 months
-      {
-        $match: {
-          $match: {
-            created_at: {
-              $gte: moment(startDate).toDate(),
-              $lt: moment(endDate).toDate(),
-            },
-            ...this.filterQuery(filter),
-          },
-        },
-      },
-      // Group documents by month and calculate the count
-      {
-        $group: {
-          _id: {
-            year: { $year: '$created_at' },
-            month: { $month: '$created_at' },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      // Project the results to the desired format
-      {
-        $project: {
-          _id: 0,
-          month: {
-            $dateToString: {
-              format: '%Y-%m',
-              date: new Date(Number('$_id.year'), Number('$_id.month'), 1),
-            },
-          },
-          count: 1,
-        },
-      },
-      // Sort documents by month in ascending order
-      {
-        $sort: { month: 1 },
-      },
-    ]);
-  }
-
-  private async analyticsDataPerWeek(
-    startDate: Date,
-    endDate: Date,
-    filter: AppointmentAnalyticsFilter,
-  ) {
-    return this.appointmentModel.aggregate([
-      // Filter documents from the last 3 months
-      {
-        $match: {
-          created_at: {
-            $gte: moment(startDate).toDate(),
-            $lt: moment(endDate).toDate(),
-          },
-          ...this.filterQuery(filter),
-        },
-      },
-      // Group documents by week and calculate the count
-      {
-        $group: {
-          _id: {
-            year: { $year: '$created_at' },
-            week: { $week: '$created_at' },
-          },
-          count: { $sum: 1 },
-        },
-      },
-      // Project the results to the desired format
-      {
-        $project: {
-          _id: 0,
-          week: { $concat: ['Week ', { $toString: '$_id.week' }] },
-          year: '$_id.year',
-          count: 1,
-        },
-      },
-      // Sort documents by year and week in ascending order
-      {
-        $sort: { year: 1, week: 1 },
-      },
-    ]);
   }
 
   private filterQuery(filter: AppointmentAnalyticsFilter) {
