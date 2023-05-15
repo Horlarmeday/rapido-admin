@@ -29,9 +29,18 @@ export class PatientsController {
     );
     return sendSuccessResponse(Messages.RETRIEVED, result);
   }
+
+  @Get('countries')
+  async getCountries() {
+    const result = await this.patientsService.getCountries();
+    return sendSuccessResponse(Messages.RETRIEVED, result);
+  }
+
   @Get(':id')
   async getPatient(@Param('id') id: Types.ObjectId) {
     const result = await this.patientsService.getPatient(id);
     return sendSuccessResponse(Messages.RETRIEVED, result);
   }
+
+
 }

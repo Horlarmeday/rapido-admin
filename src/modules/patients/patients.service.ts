@@ -72,7 +72,7 @@ export class PatientsService {
       country,
       state,
       plan,
-      status
+      status,
     } = patientAdvancedFilterDto;
     const { limit, offset } = this.generalHelpers.calcLimitAndOffset(
       +currentPage,
@@ -163,6 +163,19 @@ export class PatientsService {
       { userId },
       { populate: 'planId' },
     );
+  }
+
+  async getCountries() {
+    const countries = await this.userModel.distinct('profile.contact.country');
+    const countriesWithStates = [];
+
+    for (const country of countries) {
+      const states = await this.userModel.distinct('profile.contact.state', {
+        'profile.contact.country': country,
+      });
+      countriesWithStates.push({ country, states });
+    }
+    return countriesWithStates;
   }
 
   async dashboardSpecialistAnalytics() {
