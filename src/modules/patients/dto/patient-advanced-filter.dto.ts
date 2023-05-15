@@ -31,4 +31,7 @@ export class PatientAdvancedFilterDto {
 
   @IsOptional()
   plan: string;
+
+  @IsNotEmpty()
+  status: string;
 }

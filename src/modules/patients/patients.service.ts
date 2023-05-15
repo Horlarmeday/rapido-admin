@@ -72,6 +72,7 @@ export class PatientsService {
       country,
       state,
       plan,
+      status
     } = patientAdvancedFilterDto;
     const { limit, offset } = this.generalHelpers.calcLimitAndOffset(
       +currentPage,
@@ -91,6 +92,7 @@ export class PatientsService {
       ...(minDependant && { dependants: { $size: +minDependant } }),
       ...(maxDependant && { dependants: { $size: +maxDependant } }),
       ...(plan && { 'plan.plan_name': plan }),
+      ...(status === 'All' ? {} : { status }),
     };
     let result: { patients: UserDocument[]; count: number };
 
