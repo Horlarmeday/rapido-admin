@@ -93,6 +93,7 @@ export class PatientsService {
       ...(maxDependant && { dependants: { $size: +maxDependant } }),
       ...(plan && { 'plan.plan_name': plan }),
       ...(status === 'All' ? {} : { status }),
+      ...(search && { $text: { $search: search } }),
     };
     let result: { patients: UserDocument[]; count: number };
 

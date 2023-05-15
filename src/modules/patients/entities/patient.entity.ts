@@ -291,4 +291,14 @@ export class User {
   })
   status: any;
 }
-export const UserSchema = SchemaFactory.createForClass(User);
+
+const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({
+  'profile.first_name': 'text',
+  'profile.last_name': 'text',
+  'profile.contact.email': 'text',
+  'professional_practice.category': 'text',
+  'profile.gender': 'text',
+  user_type: 'text',
+});
+export { UserSchema };

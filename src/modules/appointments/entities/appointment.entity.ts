@@ -39,8 +39,8 @@ export class Appointment {
 
   @Prop(
     raw({
-      time_taken: { type: Number, default: 0 },
-      unit: { type: String, default: 'Minutes' },
+      time_taken: { type: Number },
+      unit: { type: String },
     }),
   )
   call_duration: number;
