@@ -1,5 +1,5 @@
 import { AppointmentStatus, MeetingType } from '../entities/appointment.entity';
-import { IsEnum, IsNotEmpty, IsOptional, ValidateIf } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from "class-validator";
 
 export class AppointmentsQueryDto {
   @IsNotEmpty()
@@ -9,8 +9,8 @@ export class AppointmentsQueryDto {
   pageLimit: number;
 
   @IsNotEmpty()
-  @IsEnum(AppointmentStatus)
-  status: AppointmentStatus;
+  @IsString()
+  status: AppointmentStatus | string;
 
   @ValidateIf((o) => o.medium !== undefined)
   @IsEnum(MeetingType)
