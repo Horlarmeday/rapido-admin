@@ -9,6 +9,13 @@ export enum UserType {
   SPECIALIST = 'Specialist',
 }
 
+export enum ProfileStatus {
+  ACTIVE = 'Active',
+  INACTIVE = 'Inactive',
+  CANCELLED = 'Cancelled',
+  SUSPENDED = 'Suspended',
+}
+
 @Schema({
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   toJSON: { getters: true, virtuals: true },
@@ -289,7 +296,7 @@ export class User {
   @Prop({
     type: String,
   })
-  status: any;
+  status: ProfileStatus;
 }
 
 const UserSchema = SchemaFactory.createForClass(User);

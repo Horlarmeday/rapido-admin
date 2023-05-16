@@ -8,10 +8,11 @@ import {
   countDocuments,
   find,
   findAndCountAll,
+  updateOneAndReturn,
 } from '../../common/crud/crud';
 import { Model, Types } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
-import { User, UserDocument } from './entities/patient.entity';
+import { ProfileStatus, User, UserDocument } from './entities/patient.entity';
 import { GeneralHelpers } from '../../common/helpers/general.helpers';
 import { Messages } from '../../core/messages/messages';
 import { findOne } from '../../common/crud/crud';
@@ -91,7 +92,7 @@ export class PatientsService {
       }),
       ...(minDependant && { dependants: { $size: +minDependant } }),
       ...(maxDependant && { dependants: { $size: +maxDependant } }),
-      ...(plan && { 'plan.plan_name': plan }),
+      ...(plan && { 'plan.planId': plan }),
       ...(status === 'All' ? {} : { status }),
       ...(search && { $text: { $search: search } }),
     };
@@ -564,5 +565,18 @@ export class PatientsService {
       totalPatientsWithSubscriptionYesterday,
       totalPatientsWithoutSubscriptionYesterday,
     };
+  }
+
+  async changePatientStatus(
+    profileStatus: ProfileStatus,
+    userId: Types.ObjectId,
+  ) {
+    return updateOneAndReturn(
+      this.userModel,
+      { _id: userId },
+      {
+        status: profileStatus,
+      },
+    );
   }
 }
