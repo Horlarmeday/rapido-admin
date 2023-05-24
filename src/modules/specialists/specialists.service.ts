@@ -18,6 +18,7 @@ import {
 import { WalletDocument } from './entities/wallet.entity';
 import { AppointmentsService } from '../appointments/appointments.service';
 import {
+  TransactionType,
   WalletTransaction,
   WalletTransactionDocument,
 } from './entities/wallet-transactions.entity';
@@ -70,7 +71,7 @@ export class SpecialistsService {
           $lte: new Date(new Date(dateReg).setHours(23, 59, 59)),
         },
       }),
-      ...(status && { status }),
+      ...(status && status === 'All' ? {} : { verification_status: status }),
       ...(category && { 'professional_practice.category': category }),
     };
     let result: { specialists: UserDocument[]; count: number };
@@ -127,13 +128,37 @@ export class SpecialistsService {
     };
   }
 
+  async getSpecialistEarnings(userId: Types.ObjectId) {
+    const [earnings, withdrawals] = await Promise.all([
+      find(this.walletTxnModel, {
+        type: TransactionType.CREDIT,
+        userId,
+      }),
+      find(this.walletTxnModel, {
+        type: TransactionType.DEBIT,
+        userId,
+      }),
+    ]);
+    return {
+      totalEarnings: earnings.reduce(
+        (prevVal, currVal) => prevVal + currVal.amount,
+        0,
+      ),
+      totalWithdrawals: withdrawals.reduce(
+        (prevVal, currVal) => prevVal + currVal.amount,
+        0,
+      ),
+    };
+  }
+
   async getSpecialist(userId: Types.ObjectId) {
     const user = await this.patientsService.findOne({ _id: userId });
-    const [transactions, appointments] = await Promise.all([
+    const [transactions, appointments, earnings] = await Promise.all([
       this.getWalletTransactions(userId),
       this.appointmentService.getSpecialistAppointments(userId, {}),
+      this.getSpecialistEarnings(userId),
     ]);
-    return { user, transactions, appointments };
+    return { user, transactions, appointments, earnings };
   }
 
   async getWalletTransactions(userId: Types.ObjectId) {
