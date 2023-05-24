@@ -73,6 +73,7 @@ export class SpecialistsService {
       }),
       ...(status && status === 'All' ? {} : { verification_status: status }),
       ...(category && { 'professional_practice.category': category }),
+      ...(search && { $text: { $search: search } }),
     };
     let result: { specialists: UserDocument[]; count: number };
 
