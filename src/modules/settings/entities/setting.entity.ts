@@ -4,14 +4,17 @@ import {
   PaymentProvider,
 } from '../types/settings.types';
 import { HydratedDocument } from 'mongoose';
+import { SpecialistRate } from '../types/settings.types';
 
 export type AdminSettingsDocument = HydratedDocument<AdminSetting>;
 
-@Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } })
+@Schema({
+  collection: 'admin_settings',
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+})
 export class AdminSetting {
   @Prop(
     raw({
-      appointment_fee: { type: Number, required: true, default: 1000 },
       payment_provider: {
         type: String,
         enum: {
@@ -27,5 +30,19 @@ export class AdminSetting {
     }),
   )
   defaults: AdminDefaultSettingsTypes;
+
+  @Prop(
+    raw([
+      {
+        category: { type: String },
+        specialization: { type: String },
+        rate: raw({
+          number: { type: Number },
+          unit: { type: String },
+        }),
+      },
+    ]),
+  )
+  specialist_rates: SpecialistRate[];
 }
 export const AdminSettingSchema = SchemaFactory.createForClass(AdminSetting);
