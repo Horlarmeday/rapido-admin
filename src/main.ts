@@ -8,6 +8,7 @@ import * as bodyParser from 'body-parser';
 import helmet from 'helmet';
 import * as cors from 'cors';
 import * as morgan from 'morgan';
+import { SettingsService } from "./modules/settings/settings.service";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -28,6 +29,8 @@ async function bootstrap() {
   );
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new MongoExceptions());
+  const settingService = app.get(SettingsService);
+  await settingService.findOrCreate();
   await app.listen(port, () => {
     logger.log(`Server running on port ${port}`);
   });
