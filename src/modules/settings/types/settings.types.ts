@@ -26,3 +26,8 @@ export class AdminSetting {
   defaults: AdminDefaultSettingsTypes;
   specialist_rates: SpecialistRate[];
 }
+
+export class SplitRatio {
+  display_name: string;
+  percentage: number;
+}

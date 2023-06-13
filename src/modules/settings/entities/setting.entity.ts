@@ -1,12 +1,13 @@
 import { Prop, raw, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   AdminDefaultSettingsTypes,
-  PaymentProvider,
-} from '../types/settings.types';
+  PaymentProvider, SplitRatio
+} from "../types/settings.types";
 import { HydratedDocument } from 'mongoose';
 import { SpecialistRate } from '../types/settings.types';
 
 export type AdminSettingsDocument = HydratedDocument<AdminSetting>;
+
 
 @Schema({
   collection: 'admin_settings',
@@ -44,5 +45,15 @@ export class AdminSetting {
     ]),
   )
   specialist_rates: SpecialistRate[];
+
+  @Prop(
+    raw([
+      {
+        display_name: { type: String },
+        percentage: { type: Number },
+      },
+    ]),
+  )
+  split_ratio: SplitRatio[];
 }
 export const AdminSettingSchema = SchemaFactory.createForClass(AdminSetting);

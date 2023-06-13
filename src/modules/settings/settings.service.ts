@@ -13,6 +13,9 @@ import {
 } from '../../common/crud/crud';
 import { AddRateDto } from './dto/add-rate.dto';
 import { UpdateRateDto } from './dto/update-rate.dto';
+import { RateAdvancedFilterDto } from './dto/rate-advanced-filter.dto';
+import { AddSplitRatioDto } from './dto/add-split-ratio.dto';
+import { UpdateSplitRatioDto } from './dto/update-split-ratio.dto';
 
 @Injectable()
 export class SettingsService {
@@ -69,10 +72,20 @@ export class SettingsService {
     );
   }
 
-  async getRates() {
+  async getRates(rateAdvancedFilterDto: RateAdvancedFilterDto) {
+    const { category, minRate, maxRate, specialization } =
+      rateAdvancedFilterDto;
+    const query = {
+      ...(category === 'All' ? {} : { 'specialist_rates.category': category }),
+      ...(specialization && {
+        'specialist_rates.specialization': specialization,
+      }),
+      ...(minRate && { 'specialist_rates.rate.number': { $size: +minRate } }),
+      ...(maxRate && { 'specialist_rates.rate.number': { $size: +maxRate } }),
+    };
     return findOne(
       this.adminSettingModel,
-      {},
+      { ...query },
       { selectFields: 'specialist_rates' },
     );
   }
@@ -85,5 +98,36 @@ export class SettingsService {
         $pull: { specialist_rates: { _id: rateId } },
       },
     );
+  }
+
+  async addSplitRatio(addSplitRatioDto: AddSplitRatioDto) {
+    return await upsert(
+      this.adminSettingModel,
+      { _id: addSplitRatioDto.settingId },
+      { $addToSet: { split_ratio: { $each: [addSplitRatioDto] } } },
+    );
+  }
+
+  async updateSplitRatio(updateSplitRatioDto: UpdateSplitRatioDto) {
+    const { splitRatio, splitRatioId } = updateSplitRatioDto;
+    return await updateOneAndReturn(
+      this.adminSettingModel,
+      { 'split_ratio._id': splitRatioId },
+      { 'split_ratio.$': splitRatio },
+    );
+  }
+
+  async deleteSplitRatio(splitRatioId: Types.ObjectId) {
+    return await upsert(
+      this.adminSettingModel,
+      {},
+      {
+        $pull: { split_ratio: { _id: splitRatioId } },
+      },
+    );
+  }
+
+  async getSplitRatio() {
+    return findOne(this.adminSettingModel, {}, { selectFields: 'split_ratio' });
   }
 }
