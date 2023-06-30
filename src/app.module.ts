@@ -14,6 +14,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { LifeguardsModule } from './modules/lifeguards/lifeguards.module';
 
 dotenv.config();
 @Module({
@@ -30,6 +31,7 @@ dotenv.config();
     SettingsModule,
     PlansModule,
     CategoriesModule,
+    LifeguardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
