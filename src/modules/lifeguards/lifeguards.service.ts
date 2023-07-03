@@ -82,7 +82,7 @@ export class LifeguardsService {
     return await findOne(
       this.lifeguardModel,
       { _id: lifeguardId },
-      { selectFields: ['-password', 'card_details'] },
+      { selectFields: ['-password', '-card_details'] },
     );
   }
 
